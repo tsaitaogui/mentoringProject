@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<title></title>
+</head>
+<style>
+	* {
+		margin: 0;
+		padding: 0;
+	}
+
+	body {
+		padding-top: 30px;
+		padding-left: 30px;
+	}
+
+	div.functions {
+		float: left;
+		padding: 20px;
+		margin-left: 20px;
+		background-color: lightblue;
+	}
+
+    div.functions > button {
+		display: block;
+		padding: 3px;
+		margin-top: 15px;
+		font-size: 20px;
+		cursor:pointer;
+	}
+
+	div.main {
+		float: left;
+	}
+
+    div.main > div {
+	    float: left;
+    }
+
+	div.edge {
+		background-color: lightgrey;
+	}
+
+	div.edge:hover {
+		background-color: orange;
+		cursor:pointer;
+	}
+
+	div.edge:active {
+		background-color: darkorange;
+	}
+
+	div.barrier {
+		background-color: black;
+	}
+
+	div.barrier:hover {
+		background-color: orange;
+		cursor:pointer;
+	}
+
+	div.barrier:active {
+		background-color: darkorange;
+	}
+
+	div.stuffing {
+		background: lightgrey;
+	}
+
+	div.grid {
+		background-color: white;
+	}
+
+	div.grid:hover {
+		background-color: lightcyan;
+		cursor:pointer;
+	}
+
+	div.grid:active {
+		background-color: lightskyblue;
+	}
+
+	div.endpoint {
+		background-color: springgreen !important;
+	}
+
+	div.endpoint:hover {
+		cursor:pointer;
+	}	
+
+	div.visited {
+		background-color: lightgoldenrodyellow;		
+	}
+
+	div.solution {
+		background-color: palegreen;
+		text-align: center;
+		vertical-align: middle;
+		color: blue;
+		font-weight: bold;
+		font-size: 80px;
+	}
+</style>
+<body>
+	<div class="main"></div>
+	<div class="functions">
+		<button id="astar">astar</button>
+		<button id="depth_first">depth_first</button>
+		<button id="" disabled>breadth_first</button>
+		<button id="" disabled>export</button>
+		<button id="reset">reset</button>
+		<br/><input type="checkbox" id="bystep" name="bystep"><label for="bystep"> step by step</label><br/>
+		<textarea name="" id="" cols="30" rows="10" style="margin-top: 20px; resize:none" disabled="disabled">(print the solution)</textarea>
+	</div>	
+	<script>
+		;(function (global, factory, utils) {
+			var app = factory(global, utils)
+			var layout = app.setLayout({
+				row: 8,
+				column: 8,
+				square_size: 80,
+				stuffing: 6
+			})
+			app.bindFunction(layout)
+		}(window, function (container, utils, config) {
+   			function isPassable(input, row, column, x, y, i, j) {
+   				if (i === 0 && j === 0) {
+   					return true
+   				} else {
+   					if (x + i < 0) {
+   						return false
+   					} else if (y + j < 0) {
+	   					return false
+   					} else if (x + i > row - 1) {
+   						return false
+   					} else if (y + j > column - 1) {
+   						return false
+   					} else if (blocked(x, y, i, j)) {
+	   					return false
+   					} else {
+   						return true
+   					}
+   				}
+
+   				function blocked(x, y, i, j) {
+   					var direction = 2 * i + 3 * j
+   					switch (direction) {
+   						case -5 :
+   							if (isBarrier(input.hedges[x + i][y + j]) ||
+   							    isBarrier(input.vedges[x + i][y + j]) ||
+   							    isBarrier(input.hedges[x + i][y])     ||
+   							    isBarrier(input.vedges[x][y + j])) {
+   								return true
+   							} else {
+	   							return false
+   							}
+   						case -2 :
+   							if (isBarrier(input.hedges[x + i][y + j])) {
+   								return true
+   							} else {
+   								return false
+   							}
+   						case 1 :
+   							if (isBarrier(input.hedges[x + i][y + j]) ||
+   								isBarrier(input.hedges[x + i][y])     ||
+   								isBarrier(input.vedges[x][y])         ||
+   								isBarrier(input.vedges[x + i][y])) {
+   								return true
+   							} else {
+ 								return false
+   							}
+   						case -3:
+   							if (isBarrier(input.vedges[x + i][y + j])) {
+   								return true
+   							} else {
+   								return false
+   							}
+   						case 3 :
+   							if (isBarrier(input.vedges[x][y])) {
+   								return true
+   							} else {
+   								return false
+   							}
+   						case -1 :
+   							if (isBarrier(input.hedges[x][y + j])     ||
+   								isBarrier(input.vedges[x + i][y + j]) ||
+   								isBarrier(input.hedges[x][y])         ||
+   								isBarrier(input.vedges[x][y + j])) {
+   								return true
+   							} else {
+  								return false
+   							}
+   						case 2 :
+   							if (isBarrier(input.hedges[x][y])) {
+   								return true
+   							} else {
+   								return false
+   							}
+   						case 5 :
+   							if (isBarrier(input.hedges[x][y + j]) ||
+   							    isBarrier(input.hedges[x][y])     ||
+   							    isBarrier(input.vedges[x + i][y]) ||
+   							    isBarrier(input.vedges[x][y])) {
+   								return true
+   							} else {
+   								return false
+   							}
+   						default:
+   							throw direction
+  					}
+				}
+
+   				function isBarrier(elem) {
+   					return elem.classList.contains('barrier')
+   				}
+   			}
+
+   			var depth_first = function (input, row, column, start, end) {
+   				var start_x = Math.floor(start / column)
+				var start_y = Math.floor(start % row)
+				var goal_x = Math.floor(end / column)
+				var goal_y = Math.floor(end % row)
+
+   				function foo(grid_x, grid_y) {
+   					for (var i = -1; i <= 1; i++) {
+   						for (var j = -1; j <= 1; j++) {
+   							if (isPassable(input, row, column, grid_x, grid_y, i, j) &&
+   							   !input.grids[grid_x + i][grid_y + j].classList.contains('visited')) {
+   								setTimeout((function (i, j) {
+   									return function () {
+   										input.grids[grid_x + i][grid_y + j].classList.add('visited')
+   										foo(grid_x + i, grid_y + j)
+   									}
+   								} (i, j)), 500)
+   							}
+   						}
+   					}
+   				}
+
+   				foo(start_x, start_y)
+   			}
+
+			var a_star = function (input, row, column, start, end) {
+				var start_x = Math.floor(start / column)
+				var start_y = Math.floor(start % row)
+				var goal_x = Math.floor(end / column)
+				var goal_y = Math.floor(end % row)
+
+				var f = []
+				var g = []
+				var h = []
+				var close = []
+				var parent = []
+				for (var i = 0; i < column; i++) {
+					var list_close = []
+					var list_f = []
+					var list_g = []
+					var list_h = []
+					var list_parent = []
+					for (var j = 0; j < row; j++) {
+						list_f.push(null)
+						list_g.push(0)
+						list_h.push(0)
+						list_close.push(false)
+						list_parent.push(-1)
+					}
+					close.push(list_close)
+					f.push(list_f)
+					g.push(list_g)
+					h.push(list_h)
+					parent.push(list_parent)
+				}
+
+   				branch_and_bound(start_x, start_y)
+   				var flag = true
+   				while (flag) {
+   					var min = null
+   					var x = null
+   					var y = null
+   					for (var i = 0; i < row; i++) {
+   						for (var j = 0; j < column; j++) {
+   							if (f[i][j] !== null && !close[i][j]) {
+   								if (min === null) {
+   									min = f[i][j]
+   									x = i
+   									y = j
+   								} else if (min > f[i][j]) {
+   									min = f[i][j]
+   									x = i
+   									y = j
+   								}
+   							}	
+   						}
+   					}
+   					if (min === null) {
+   						flag = false
+   					} else {
+   						if (branch_and_bound(x, y)) {
+   							(function (f, x, y) {
+   								f(f, x, y)
+   							} (function (f, x, y) {
+   								input.grids[x][y].classList.add('solution')
+   								if (parent[x][y] === -1) {
+   									input.grids[x][y].innerText = 0
+   									return 1
+   								} else {
+   									var number = f(f, Math.floor(parent[x][y] / column), Math.floor(parent[x][y] % column))
+   									input.grids[x][y].innerText = number
+   									return (number + 1)
+   								}
+   							}, x, y))
+
+   							flag = false
+   						}
+   					}
+   				}
+
+				function branch_and_bound(x, y) {
+   					close[x][y] = true
+   					input.grids[x][y].classList.add('visited')
+   					if (x === goal_x && y === goal_y) {
+   						return true
+   					} else {
+   						for (var i = -1; i <= 1; i++) {
+   							for (var j = -1; j <= 1; j++) {
+   								if (isPassable(input, row, column, x, y, i, j) && !close[x + i][y + j]) {
+   									evlauation(x, y, i, j)
+   								}
+   							}
+   						}
+   						return false
+   					}
+
+   					function evlauation() {
+   						var weight
+   						if (Math.abs(i) + Math.abs(j) === 2) {
+   							weight = 14
+   						} else {
+	   						weight = 10
+   						}
+   						
+   						if (f[x + i][y + j] !== null) {
+    						if (g[x + i][y + j] > g[x][y] + weight) {
+    							g[x + i][y + j] = g[x][y] + weight							
+    							f[x + i][y + j] = g[x + i][y + j] + h[x + i][y + j]
+    							parent[x + i][y + j] = x * column + y
+    						}
+   						} else {
+   							g[x + i][y + j] = g[x][y] + weight
+   							h[x + i][y + j] += 14 * Math.min(Math.abs(x + i - goal_x), Math.abs(y + j - goal_y)) + 
+   						    	               10 * Math.abs(Math.abs(x + i - goal_x) - Math.abs(y + j - goal_y))
+	   						f[x + i][y + j] = g[x + i][y + j] + h[x + i][y + j]
+	   						parent[x + i][y + j] = x * column + y
+   						}
+   					}
+   				}
+
+			}
+			
+			return {
+				setLayout: function (config) {
+					var resetUI = function (config) {
+						var row = config.row || 5
+						var column = config.column || 5
+						var square_size = config.square_size || 100
+						var stuffing = config.stuffing || 5
+
+						var main = document.querySelectorAll('.main')[0]
+						main.style.width = String((square_size * column) + (stuffing * (column - 1))) + 'px'
+						main.style.height = String((square_size * row) + (stuffing * (row - 1))) + 'px' 
+						var grid = '<div class="grid" style="height:' + square_size + 'px; width:' + square_size + 'px"></div>'
+						var vedge = '<div class="edge vertical-edge" style="height: ' + square_size + 'px; width: ' + stuffing + 'px"></div>'
+						var hedge = '<div class="edge horizontal-edge" style="height: ' + stuffing + 'px; width:' + square_size + 'px"></div>'
+						var stuff = '<div class="stuffing" style="height:' + stuffing + 'px; width:' + stuffing + 'px"></div>'				
+				
+						var html = []
+						for (var i = 0; i < column; i++) {
+							html.push(grid)
+							html.push(vedge)
+						}
+						html.pop()
+						for (var i = 1; i < row; i++) {
+							for (var j = 0; j < column; j++) {
+								html.push(hedge)
+								html.push(stuff)
+							}
+							html.pop()
+							for (var j = 0; j < column; j++) {
+								html.push(grid)
+								html.push(vedge)
+							}
+							html.pop()
+						}
+						main.innerHTML = html.join('')
+					}
+					resetUI(config)
+					return {
+						config: config,
+						resetUI: resetUI,
+						grids: (function (row, column) {
+									var grids = document.querySelectorAll('.grid')
+									grids = Array.prototype.slice.call(grids)
+									var new_grids = []
+									for (var i = 0; i < row; i++) {
+										var row_grid = []
+										for (var j = 0; j < column; j++) {
+											row_grid.push(grids.shift())
+										}
+										new_grids.push(row_grid)
+									}
+									return new_grids
+								} (config.row, config.column)),
+						vedges: (function (row, column) {
+									var vedges = document.querySelectorAll('.vertical-edge')
+									vedges = Array.prototype.slice.call(vedges)
+									var new_vedges = []
+									for (var i = 0; i < row; i++) {
+										var row_vedges = []
+										for (var j = 0; j < column - 1; j++) {
+											row_vedges.push(vedges.shift())
+										}
+										new_vedges.push(row_vedges)
+									}
+									return new_vedges
+								}(config.row, config.column)),
+						hedges: (function (row, column) {
+									var hedges = document.querySelectorAll('.horizontal-edge')
+									hedges = Array.prototype.slice.call(hedges)
+									var new_hedges = []
+									for (var i = 0; i < row - 1; i++) {
+										var row_hedges = []
+										for (var j = 0; j < column; j++) {
+											row_hedges.push(hedges.shift())
+										}
+										new_hedges.push(row_hedges)
+									}
+									return new_hedges
+								}(config.row, config.column))
+					}
+				},
+				bindFunction: function(layout) {
+					var row = layout.config.row
+					var column = layout.config.row
+					var endpoints = []
+					var grids = document.querySelectorAll('.grid')
+					Array.prototype.forEach.call(grids, function (grid, index) {
+						grid.addEventListener('click', function (event) {
+							if (endpoints.indexOf(grid) > -1) {
+								removeFromEndPoints(grid)
+							} else {
+								addToEndPoints(grid)
+							}
+
+							function removeFromEndPoints(grid) {
+								var idx = endpoints.indexOf(grid)
+								if (idx > -1) {
+									endpoints.splice(idx, 1)
+								}
+								grid.classList.remove('endpoint')
+								grid.classList.add('grid')
+							}
+
+							function addToEndPoints(grid) {
+								if (endpoints.length == 2) {
+									var old = endpoints.pop()
+									removeFromEndPoints(old)
+								}
+								endpoints.push(grid)
+								grid.classList.remove('grid')
+								grid.classList.add('endpoint')
+							}
+						})
+					})
+
+					var edges = document.querySelectorAll('.edge')
+					Array.prototype.forEach.call(edges, function (edge) {
+						edge.addEventListener('click', function (event) {
+							if (edge.classList.contains('edge')) {
+								edge.classList.remove('edge')
+								edge.classList.add('barrier')
+							} else {
+								edge.classList.remove('barrier')
+								edge.classList.add('edge')
+							}
+						})
+					})
+
+					var astar_btn = document.getElementById('astar')
+					astar_btn.addEventListener('click', function (event) {
+						if (endpoints.length === 2) {
+							var arr_grids = Array.prototype.slice.call(grids)
+							var start = arr_grids.indexOf(endpoints[0])
+							var end =  arr_grids.indexOf(endpoints[1])
+							setTimeout(function () {
+								a_star({
+								grids: layout.grids,
+								vedges: layout.vedges,
+								hedges: layout.hedges
+							}, row, column, start, end)}, 0)
+						}
+					})
+
+					var depth_first_btn = document.getElementById('depth_first')
+					depth_first_btn.addEventListener('click', function (event) {
+						if (endpoints.length === 2) {
+							var arr_grids = Array.prototype.slice.call(grids)
+							var start = arr_grids.indexOf(endpoints[0])
+							var end =  arr_grids.indexOf(endpoints[1])
+							setTimeout(function () {
+								depth_first({
+								grids: layout.grids,
+								vedges: layout.vedges,
+								hedges: layout.hedges
+							}, row, column, start, end)}, 0)
+						}		
+					})
+
+					var reset = document.getElementById('reset')
+					reset.addEventListener('click', function (event) {
+						endpoints = []
+						Array.prototype.forEach.call(grids, function (grid) {
+							grid.innerText = ''
+							grid.classList = ['grid']
+						})
+					})
+				}
+			}
+		}, function () {
+			function flatten(array) {
+				return Array.prototype.reduce.call(array, function (accumulation, current) {
+					if (Array.isArray(current)) {
+						return accumulation.concat(flat(current))
+					} else {
+						accumulation.push(current)
+						return accumulation
+					}
+				}, [])	
+			}
+			return {
+				flatten: flatten
+			}
+		}))
+	</script>
+</body>
+</html>
